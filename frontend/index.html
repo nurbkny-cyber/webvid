@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WebVid — Turn any website into short videos</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', system_ui, sans-serif; background: #0a0a12; color: #f1f1f5; }
+  .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
+  .gradient { background: linear-gradient(135deg, #3b6cf5, #7c3aed); }
+  .section { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+  .scene-card { transition: all .2s; }
+  .scene-card:hover { transform: translateY(-1px); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+</style>
+</head>
+<body class="min-h-screen pb-12">
+<div class="section pt-8">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-2xl gradient flex items-center justify-center text-white font-bold text-xl tracking-[-1.5px]">WV</div>
+      <div>
+        <div class="font-semibold tracking-[-0.5px] text-2xl">WebVid</div>
+        <div class="text-[10px] text-white/50 -mt-1">WEBSITES → SHORTS</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 text-sm">
+      <div id="usage-pill" class="flex items-center gap-2 px-3 py-1 rounded-full glass text-xs">
+        <span class="text-white/60">FREE</span>
+        <span id="usage-text" class="font-mono font-semibold">2/2</span>
+      </div>
+      <button id="pro-btn" onclick="togglePro()" class="px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition glass hover:bg-white/5">GO PRO</button>
+      <button onclick="resetAll()" class="px-3 py-1.5 text-xs glass rounded-full hover:bg-white/5">New</button>
+    </div>
+  </div>
+
+  <!-- Hero / Input -->
+  <div class="text-center mb-8">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full glass text-xs mb-4">V0.1 • LOCAL • WORKS IN MOST BROWSERS</div>
+    <h1 class="font-semibold text-5xl tracking-[-2.5px] leading-none mb-3">Turn any website<br>into scroll-stopping<br>short videos.</h1>
+    <p class="max-w-md mx-auto text-lg text-white/60">Paste a URL. Get a 15-45s script + rendered vertical video for Reels, TikTok, Shorts.</p>
+
+    <div class="mt-8 max-w-xl mx-auto">
+      <div class="flex gap-3">
+        <input id="url-input" type="text" placeholder="https://example.com/article or any public page" 
+               class="flex-1 bg-white/5 border border-white/10 focus:border-[#3b6cf5] rounded-3xl px-6 py-4 text-lg placeholder:text-white/40 outline-none"
+               onkeydown="if (event.key === 'Enter') doExtract()">
+        <button onclick="doExtract()" id="import-btn"
+                class="gradient text-white font-semibold px-9 rounded-3xl text-lg active:scale-[0.985] transition disabled:opacity-60">
+          IMPORT
+        </button>
+      </div>
+      <div id="examples" class="mt-3 text-xs flex gap-2 justify-center flex-wrap text-white/50">
+        <span>Try:</span>
+        <button onclick="useExample('https://httpbin.org/html')" class="underline hover:text-white">httpbin.org/html</button>
+        <button onclick="useExample('https://en.wikipedia.org/wiki/Python_(programming_language)')" class="underline hover:text-white">wikipedia (python)</button>
+      </div>
+      <div class="text-[11px] text-white/40 mt-3">Secure extraction • 2 free renders / day • Clear errors for bad URLs</div>
+    </div>
+  </div>
+
+  <!-- Content Review + Script (Step 2) -->
+  <div id="content-section" class="hidden mb-8">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-semibold text-xl">Extracted Content</div>
+      <button onclick="resetAll()" class="text-xs px-3 py-1 rounded-full border border-white/15 hover:bg-white/5">Change URL</button>
+    </div>
+    <div class="glass rounded-3xl p-6 mb-6">
+      <div id="content-title" class="font-semibold text-2xl leading-tight mb-2"></div>
+      <div id="content-desc" class="text-white/70 text-sm mb-4"></div>
+      <div id="content-points" class="text-sm space-y-1 text-white/80"></div>
+    </div>
+
+    <!-- Script Editor -->
+    <div class="glass rounded-3xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="font-semibold text-xl">Video Script</div>
+        <div class="flex gap-2 items-center text-sm">
+          <select id="tone-select" onchange="updateScriptFromUI()" class="bg-black/40 border border-white/10 text-sm rounded-2xl px-3 py-1">
+            <option value="professional">professional</option>
+            <option value="friendly">friendly</option>
+            <option value="urgent">urgent</option>
+            <option value="storytelling">storytelling</option>
+          </select>
+          <input id="seconds-input" type="number" value="28" onchange="updateScriptFromUI()" class="w-16 bg-black/40 border border-white/10 text-sm rounded-2xl px-3 py-1 text-center">
+          <span class="text-white/50">sec</span>
+          <button onclick="updateScriptFromUI(); buildStoryboard()" class="px-4 py-1 rounded-2xl border border-white/15 text-sm hover:bg-white/5">Update Storyboard</button>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <div class="text-xs text-white/50 mb-1">HOOK (first 4-6 seconds)</div>
+          <textarea id="hook-input" oninput="updateScriptFromUI()" class="w-full bg-black/30 border border-white/10 rounded-2xl p-3 text-sm h-14"></textarea>
+        </div>
+        <div>
+          <div class="flex justify-between text-xs text-white/50 mb-1">
+            <span>KEY POINTS</span>
+            <button onclick="addPoint()" class="text-white/70 hover:text-white">+ ADD</button>
+          </div>
+          <div id="points-container" class="space-y-2"></div>
+        </div>
+        <div>
+          <div class="text-xs text-white/50 mb-1">CALL TO ACTION</div>
+          <textarea id="cta-input" oninput="updateScriptFromUI()" class="w-full bg-black/30 border border-white/10 rounded-2xl p-3 text-sm h-12"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Storyboard -->
+  <div id="storyboard-section" class="hidden mb-8">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-semibold text-xl">Storyboard <span id="storyboard-duration" class="text-white/50 text-sm"></span></div>
+      <button onclick="doRender()" id="render-btn"
+              class="gradient text-white font-semibold px-6 py-2 rounded-3xl active:scale-[0.985] transition text-sm disabled:opacity-60">
+        RENDER VIDEO
+      </button>
+    </div>
+    <div id="scenes-grid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </div>
+
+  <!-- Result -->
+  <div id="result-section" class="hidden max-w-[620px] mx-auto text-center">
+    <div class="inline-block px-3 py-1 rounded-full text-xs bg-emerald-500/10 text-emerald-400 mb-2">RENDER COMPLETE</div>
+    <div class="text-3xl font-semibold tracking-tight mb-1">Your short video is ready</div>
+    <div id="result-meta" class="text-white/50 mb-6"></div>
+
+    <div class="mx-auto max-w-[380px] rounded-3xl overflow-hidden border border-white/10 bg-black" id="media-container">
+      <!-- media injected here -->
+    </div>
+
+    <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+      <a id="download-link" href="#" download class="gradient text-center font-semibold px-10 py-3.5 rounded-3xl">DOWNLOAD</a>
+      <button onclick="resetAll()" class="px-8 py-3.5 rounded-3xl border border-white/15 hover:bg-white/5">CREATE ANOTHER</button>
+    </div>
+    <div class="text-xs text-white/40 mt-4">Right-click the media or use the button to save. Post directly to Reels / TikTok / Shorts.</div>
+  </div>
+
+  <!-- History -->
+  <div class="mt-12">
+    <div class="flex items-baseline justify-between mb-3">
+      <div class="uppercase tracking-[2px] text-xs text-white/50">Recent videos (local)</div>
+      <button onclick="clearHistory()" class="text-xs text-white/40 hover:text-white">clear</button>
+    </div>
+    <div id="history-list" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm"></div>
+  </div>
+
+  <!-- Server Renders -->
+  <div class="mt-8">
+    <div class="flex items-baseline justify-between mb-3">
+      <div class="uppercase tracking-[2px] text-xs text-white/50">Server renders (all previous)</div>
+      <button onclick="loadServerRenders()" class="text-xs text-white/40 hover:text-white">refresh list</button>
+    </div>
+    <div id="server-renders-list" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm"></div>
+  </div>
+</div>
+
+<script>
+// Vanilla JS version - self contained, no React/Babel dependency
+const API = "http://localhost:4819";
+
+let state = {
+  url: "",
+  content: null,
+  script: null,
+  scenes: [],
+  videoAsset: null,
+  usage: { date: new Date().toISOString().split('T')[0], count: 0 },
+  isPro: false,
+  history: []
+};
+
+function loadState() {
+  try {
+    const u = localStorage.getItem('webvid_usage_v1');
+    if (u) state.usage = JSON.parse(u);
+    const p = localStorage.getItem('webvid_is_pro_v1');
+    state.isPro = p === 'true';
+    const h = localStorage.getItem('webvid_history_v1');
+    if (h) state.history = JSON.parse(h);
+  } catch(e){}
+  updateUsageUI();
+}
+
+function saveState() {
+  localStorage.setItem('webvid_usage_v1', JSON.stringify(state.usage));
+  localStorage.setItem('webvid_is_pro_v1', state.isPro ? 'true' : 'false');
+  localStorage.setItem('webvid_history_v1', JSON.stringify(state.history));
+}
+
+function updateUsageUI() {
+  const el = document.getElementById('usage-text');
+  const today = new Date().toISOString().split('T')[0];
+  if (state.usage.date !== today) {
+    state.usage = { date: today, count: 0 };
+    saveState();
+  }
+  const left = Math.max(0, 2 - state.usage.count);
+  el.textContent = state.isPro ? '∞' : `${left}/2`;
+  const proBtn = document.getElementById('pro-btn');
+  proBtn.textContent = state.isPro ? 'PRO ✓' : 'GO PRO';
+  proBtn.className = state.isPro ? 'px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition bg-amber-500 text-black' : 'px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition glass hover:bg-white/5';
+}
+
+function togglePro() {
+  state.isPro = !state.isPro;
+  saveState();
+  updateUsageUI();
+  alert(state.isPro ? 'Pro unlocked (demo) — unlimited renders, no watermark.' : 'Pro disabled.');
+}
+
+function useExample(url) {
+  document.getElementById('url-input').value = url;
+  doExtract();
+}
+
+function showSection(id, show) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('hidden', !show);
+}
+
+function resetAll() {
+  state.url = '';
+  state.content = null;
+  state.script = null;
+  state.scenes = [];
+  state.videoAsset = null;
+  document.getElementById('url-input').value = '';
+  showSection('content-section', false);
+  showSection('storyboard-section', false);
+  showSection('result-section', false);
+  renderHistory();
+}
+
+function doExtract() {
+  const input = document.getElementById('url-input');
+  const url = input.value.trim();
+  if (!url) { alert('Enter a website URL'); return; }
+
+  const btn = document.getElementById('import-btn');
+  const orig = btn.textContent;
+  btn.textContent = 'IMPORTING...';
+  btn.disabled = true;
+
+  fetch(`${API}/api/extract`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (!j.success) throw new Error(j.error || 'Extract failed');
+    state.url = url;
+    state.content = j.data;
+    showSection('content-section', true);
+    renderContent();
+    generateScript();
+  })
+  .catch(e => {
+    alert(e.message || 'Failed to import site. Try one of the example buttons above.');
+  })
+  .finally(() => {
+    btn.textContent = orig;
+    btn.disabled = false;
+  });
+}
+
+function renderContent() {
+  if (!state.content) return;
+  document.getElementById('content-title').textContent = state.content.title || 'Untitled';
+  document.getElementById('content-desc').textContent = state.content.description || '';
+  const pts = document.getElementById('content-points');
+  pts.innerHTML = '';
+  (state.content.key_points || []).forEach(p => {
+    const li = document.createElement('div');
+    li.textContent = '• ' + p;
+    pts.appendChild(li);
+  });
+}
+
+function generateScript() {
+  if (!state.content) return;
+  // Use backend for script
+  fetch(`${API}/api/script`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      web_content: state.content, 
+      tone: document.getElementById('tone-select') ? document.getElementById('tone-select').value : 'professional', 
+      target_seconds: parseInt(document.getElementById('seconds-input') ? document.getElementById('seconds-input').value : 28) 
+    })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (j.success) {
+      state.script = j.script;
+    } else {
+      // fallback
+      state.script = {
+        hook: `Key takeaways from ${state.content.title || 'this page'}`,
+        points: state.content.key_points && state.content.key_points.length ? state.content.key_points.slice(0,4) : [state.content.description || 'Important details'],
+        cta: 'Full story on the site. Save this.',
+        target_seconds: 28
+      };
+    }
+    renderScriptEditor();
+    buildStoryboard();
+    showSection('storyboard-section', true);
+  })
+  .catch(() => {
+    // simple fallback
+    state.script = {
+      hook: `Key takeaways from ${state.content.title || 'this page'}`,
+      points: state.content.key_points && state.content.key_points.length ? state.content.key_points.slice(0,4) : [state.content.description || 'Important details'],
+      cta: 'Full story on the site. Save this.',
+      target_seconds: 28
+    };
+    renderScriptEditor();
+    buildStoryboard();
+    showSection('storyboard-section', true);
+  });
+}
+
+function renderScriptEditor() {
+  if (!state.script) return;
+  // Inject dynamic editors if not present (we build them in the content-section area)
+  const container = document.getElementById('content-section');
+  // We already have some static, but for points we rebuild
+  // For simplicity, update the visible inputs we have in the static HTML
+  // Since we have static IDs from earlier edit, make sure they exist or create dynamic.
+  // To keep it simple and robust, we'll create a clean script editor area dynamically.
+  let scriptArea = document.getElementById('script-editor-area');
+  if (!scriptArea) {
+    scriptArea = document.createElement('div');
+    scriptArea.id = 'script-editor-area';
+    scriptArea.className = 'mt-6 glass rounded-3xl p-6';
+    container.appendChild(scriptArea);
+  }
+  scriptArea.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <div class="font-semibold text-xl">Video Script</div>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <div class="text-xs text-white/50 mb-1">HOOK</div>
+        <textarea id="hook-ta" class="w-full bg-black/30 border border-white/10 rounded-2xl p-3 text-sm h-14">${state.script.hook || ''}</textarea>
+      </div>
+      <div>
+        <div class="flex justify-between text-xs text-white/50 mb-1"><span>KEY POINTS</span><button onclick="addPoint()" class="text-white/70 hover:text-white">+ ADD</button></div>
+        <div id="points-dyn" class="space-y-2"></div>
+      </div>
+      <div>
+        <div class="text-xs text-white/50 mb-1">CTA</div>
+        <textarea id="cta-ta" class="w-full bg-black/30 border border-white/10 rounded-2xl p-3 text-sm h-12">${state.script.cta || ''}</textarea>
+      </div>
+      <div class="flex gap-3 text-sm">
+        <button onclick="saveScriptFromUI(); buildStoryboard()" class="px-5 py-2 rounded-2xl border border-white/15">Update Storyboard</button>
+      </div>
+    </div>
+  `;
+  renderPoints();
+  // wire live update
+  ['hook-ta','cta-ta'].forEach(id => {
+    const ta = document.getElementById(id);
+    if (ta) ta.oninput = () => saveScriptFromUI();
+  });
+}
+
+function renderPoints() {
+  const c = document.getElementById('points-dyn');
+  if (!c || !state.script) return;
+  c.innerHTML = '';
+  (state.script.points || []).forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'flex gap-2';
+    div.innerHTML = `
+      <textarea class="flex-1 bg-black/30 border border-white/10 rounded-2xl p-3 text-sm h-12" data-idx="${i}">${p}</textarea>
+      <button class="text-red-400 px-2" onclick="removePoint(${i})">×</button>
+    `;
+    c.appendChild(div);
+  });
+  // wire
+  c.querySelectorAll('textarea').forEach(ta => {
+    ta.oninput = () => saveScriptFromUI();
+  });
+}
+
+function saveScriptFromUI() {
+  if (!state.script) return;
+  const hook = document.getElementById('hook-ta');
+  const cta = document.getElementById('cta-ta');
+  if (hook) state.script.hook = hook.value;
+  if (cta) state.script.cta = cta.value;
+  const pts = [];
+  document.querySelectorAll('#points-dyn textarea').forEach(ta => pts.push(ta.value));
+  state.script.points = pts;
+}
+
+function addPoint() {
+  if (!state.script) return;
+  if (!state.script.points) state.script.points = [];
+  state.script.points.push('New key point');
+  renderScriptEditor();
+}
+
+function removePoint(i) {
+  if (!state.script || !state.script.points) return;
+  state.script.points.splice(i,1);
+  renderScriptEditor();
+}
+
+function buildStoryboard() {
+  if (!state.script) return;
+  const target = state.script.target_seconds || 28;
+  const scenes = [];
+  scenes.push({ index: 0, text: state.script.hook, duration: 5.5, visual: 'title' });
+  (state.script.points || []).forEach((p, i) => {
+    scenes.push({ index: i+1, text: p, duration: 6, visual: `bullet:${i}` });
+  });
+  scenes.push({ index: 99, text: state.script.cta, duration: 5, visual: 'cta' });
+  // scale
+  const tot = scenes.reduce((a,s) => a + s.duration, 0);
+  const scale = target / tot;
+  state.scenes = scenes.map(s => ({...s, duration: Math.max(2.8, +(s.duration * scale).toFixed(1)) }));
+  renderStoryboard();
+  showSection('storyboard-section', true);
+}
+
+function renderStoryboard() {
+  const grid = document.getElementById('scenes-grid');
+  if (!grid || !state.scenes) return;
+  grid.innerHTML = '';
+  let total = 0;
+  state.scenes.forEach((sc, i) => {
+    total += sc.duration;
+    const card = document.createElement('div');
+    card.className = 'scene-card glass rounded-3xl p-5 border border-white/5';
+    card.innerHTML = `
+      <div class="flex justify-between text-xs text-white/50 mb-2">
+        <div>SCENE ${i+1}</div>
+        <div class="mono">${sc.duration}s</div>
+      </div>
+      <textarea class="w-full bg-black/40 text-sm border border-white/10 rounded-2xl p-3 h-20" data-idx="${i}">${sc.text}</textarea>
+      <div class="mt-3 flex items-center gap-2 text-xs">
+        <span class="text-white/50">Duration</span>
+        <input type="number" step="0.5" value="${sc.duration}" data-idx="${i}" class="mono bg-black/30 w-16 border border-white/10 rounded-xl px-2 py-1 text-center">
+        <span class="text-white/40">sec</span>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+  document.getElementById('storyboard-duration').textContent = `• ${total.toFixed(0)}s total`;
+  // wire inputs
+  grid.querySelectorAll('textarea').forEach(ta => {
+    ta.oninput = (e) => {
+      const idx = parseInt(ta.dataset.idx);
+      state.scenes[idx].text = ta.value;
+    };
+  });
+  grid.querySelectorAll('input[type="number"]').forEach(inp => {
+    inp.oninput = () => {
+      const idx = parseInt(inp.dataset.idx);
+      state.scenes[idx].duration = parseFloat(inp.value) || 3;
+      // live update total
+      const tot = state.scenes.reduce((a,s)=>a+s.duration,0);
+      document.getElementById('storyboard-duration').textContent = `• ${tot.toFixed(0)}s total`;
+    };
+  });
+}
+
+function doRender() {
+  if (!state.script || !state.scenes.length) { alert('No script/storyboard yet'); return; }
+  if (!state.isPro && state.usage.count >= 2) {
+    alert('Free limit reached. Toggle Pro in the header for unlimited (demo).');
+    return;
+  }
+
+  const btns = document.querySelectorAll('#render-btn');
+  if (btns.length) btns[0].textContent = 'RENDERING...';
+
+  fetch(`${API}/api/render`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      script: state.script,
+      scenes: state.scenes,
+      images: state.content ? (state.content.images || []) : []
+    })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (!j.success) throw new Error(j.error || 'Render failed');
+    state.videoAsset = j.asset;
+    if (!state.isPro) {
+      state.usage.count = (state.usage.count || 0) + 1;
+      saveState();
+      updateUsageUI();
+    }
+    state.history.unshift({
+      url: state.url,
+      title: state.content ? state.content.title : '',
+      video: `${API}${state.videoAsset.url}`,
+      format: state.videoAsset.format,
+      dur: state.videoAsset.duration,
+      ts: Date.now()
+    });
+    if (state.history.length > 12) state.history.length = 12;
+    saveState();
+    renderResult();
+    renderHistory();
+  })
+  .catch(e => {
+    alert(e.message || 'Render failed. Try again or use a different URL.');
+  })
+  .finally(() => {
+    if (btns.length) btns[0].textContent = 'RENDER VIDEO';
+  });
+}
+
+function renderResult() {
+  if (!state.videoAsset) return;
+  showSection('storyboard-section', false);
+  showSection('content-section', false);
+  showSection('result-section', true);
+  const meta = document.getElementById('result-meta');
+  meta.textContent = `${state.videoAsset.duration}s • ${state.videoAsset.format.toUpperCase()} • 1080×1920`;
+
+  const container = document.getElementById('media-container');
+  container.innerHTML = '';
+  const fullUrl = `${API}${state.videoAsset.url}`;
+  if (state.videoAsset.format === 'gif' || state.videoAsset.url.endsWith('.gif')) {
+    const img = document.createElement('img');
+    img.src = fullUrl;
+    img.className = 'w-full';
+    container.appendChild(img);
+  } else {
+    const vid = document.createElement('video');
+    vid.src = fullUrl;
+    vid.controls = true;
+    vid.className = 'w-full';
+    container.appendChild(vid);
+  }
+  const dl = document.getElementById('download-link');
+  dl.href = fullUrl;
+  dl.download = `webvid-${Date.now()}.${state.videoAsset.format}`;
+  // scroll to result
+  document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!state.history.length) {
+    list.innerHTML = '<div class="text-sm text-white/40">Your generated videos will appear here (local only).</div>';
+    return;
+  }
+  state.history.forEach((h, i) => {
+    const div = document.createElement('div');
+    div.className = 'glass p-4 rounded-3xl hover:border-white/20 border border-transparent cursor-pointer';
+    div.innerHTML = `
+      <div class="font-medium line-clamp-1">${h.title || h.url}</div>
+      <div class="text-xs text-white/50 mt-0.5">${h.dur}s • ${h.format} • ${new Date(h.ts).toLocaleDateString()}</div>
+      <div class="text-[10px] text-brand-400 mt-2">PLAY / RE-DOWNLOAD →</div>
+    `;
+    div.onclick = () => {
+      // load into result
+      state.videoAsset = { url: h.video.replace(API, ''), format: h.format, duration: h.dur };
+      document.getElementById('result-meta').textContent = `${h.dur}s • ${h.format.toUpperCase()}`;
+      const c = document.getElementById('media-container');
+      c.innerHTML = '';
+      if (h.format === 'gif') {
+        const img = document.createElement('img'); img.src = h.video; img.className='w-full'; c.appendChild(img);
+      } else {
+        const v = document.createElement('video'); v.src = h.video; v.controls=true; v.className='w-full'; c.appendChild(v);
+      }
+      const dl = document.getElementById('download-link');
+      dl.href = h.video; dl.download = `webvid-${h.ts}.${h.format}`;
+      showSection('result-section', true);
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    };
+    list.appendChild(div);
+  });
+}
+
+function clearHistory() {
+  state.history = [];
+  saveState();
+  renderHistory();
+}
+
+function loadServerRenders() {
+  const list = document.getElementById('server-renders-list');
+  if (!list) return;
+  list.innerHTML = '<div class="text-sm text-white/40">loading...</div>';
+  fetch(`${API}/api/renders`)
+    .then(r => r.json())
+    .then(j => {
+      list.innerHTML = '';
+      const files = (j.renders || []).slice(0, 12); // limit
+      if (!files.length) {
+        list.innerHTML = '<div class="text-sm text-white/40">no renders yet</div>';
+        return;
+      }
+      files.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'glass p-3 rounded-3xl hover:border-white/20 border border-transparent cursor-pointer text-xs';
+        const url = `${API}${f.url}`;
+        div.innerHTML = `
+          <div class="font-medium truncate">${f.file}</div>
+          <div class="text-[10px] text-white/50 mt-1">click to preview</div>
+        `;
+        div.onclick = () => {
+          // load into result
+          const isGif = f.file.endsWith('.gif');
+          document.getElementById('result-meta').textContent = isGif ? 'GIF' : 'VIDEO';
+          const c = document.getElementById('media-container');
+          c.innerHTML = '';
+          if (isGif) {
+            const img = document.createElement('img'); img.src = url; img.className='w-full'; c.appendChild(img);
+          } else {
+            const v = document.createElement('video'); v.src = url; v.controls=true; v.className='w-full'; c.appendChild(v);
+          }
+          const dl = document.getElementById('download-link');
+          dl.href = url; dl.download = f.file;
+          showSection('result-section', true);
+          window.scrollTo({top: 0, behavior: 'smooth'});
+        };
+        list.appendChild(div);
+      });
+    })
+    .catch(() => { list.innerHTML = '<div class="text-sm text-white/40">failed to load</div>'; });
+}
+
+function updateScriptFromUI() {
+  // for the static parts if any
+  saveScriptFromUI();
+}
+
+function addPoint() {
+  if (!state.script) state.script = {points:[]};
+  if (!state.script.points) state.script.points = [];
+  state.script.points.push('New takeaway');
+  renderScriptEditor();
+}
+
+// init
+loadState();
+renderHistory();
+loadServerRenders();
+console.log('%c[WebVid] Vanilla frontend ready — no React/Babel dependency', 'color:#64748b');
+</script>
+</body>
+</html>
