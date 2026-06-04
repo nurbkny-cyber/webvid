@@ -34,6 +34,7 @@
         <span id="usage-text" class="font-mono font-semibold">2/2</span>
       </div>
       <button id="pro-btn" onclick="togglePro()" class="px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition glass hover:bg-white/5">GO PRO</button>
+      <div id="ai-pill" class="hidden px-2 py-1 rounded-full glass text-[10px] text-emerald-400 border border-emerald-500/30">✨ Grok AI</div>
       <button onclick="resetAll()" class="px-3 py-1.5 text-xs glass rounded-full hover:bg-white/5">New</button>
     </div>
   </div>
@@ -211,7 +212,11 @@ function togglePro() {
   state.isPro = !state.isPro;
   saveState();
   updateUsageUI();
-  alert(state.isPro ? 'Pro unlocked (demo) — unlimited renders, no watermark.' : 'Pro disabled.');
+  const pill = document.getElementById('ai-pill');
+  if (pill && !pill.classList.contains('hidden')) {
+    pill.textContent = state.isPro ? '✨ Grok AI (unlimited)' : '✨ Grok AI';
+  }
+  alert(state.isPro ? 'Pro unlocked (demo) — unlimited renders + unlimited Grok AI.' : 'Pro disabled.');
 }
 
 function useExample(url) {
@@ -259,7 +264,7 @@ function doExtract() {
     state.content = j.data;
     showSection('content-section', true);
     renderContent();
-    generateScript(false);
+    generateScript(true);  // prefer Grok AI when available for the initial script (magic on by default)
   })
   .catch(e => {
     alert(e.message || 'Failed to import site. Try one of the example buttons above.');
@@ -283,7 +288,7 @@ function renderContent() {
   });
 }
 
-function generateScript(useAI = false) {
+function generateScript(useAI = true) {  // AI is the smart default for full product experience; pass false only to force template
   if (!state.content) return;
   const btn = document.getElementById('ai-script-btn');
   if (btn && useAI) {
@@ -380,6 +385,8 @@ function renderScriptEditor() {
       </div>
       <div class="flex gap-3 text-sm">
         <button onclick="saveScriptFromUI(); buildStoryboard()" class="px-5 py-2 rounded-2xl border border-white/15">Update Storyboard</button>
+        <button onclick="copyScript()" class="px-3 py-2 rounded-2xl border border-white/15 text-xs">Copy full script</button>
+        <button onclick="generateScript(true); buildStoryboard()" class="px-3 py-2 rounded-2xl border border-emerald-500/30 text-xs text-emerald-400">Regenerate with Grok</button>
         <span class="text-[10px] text-white/40 self-center">Grok uses your XAI_API_KEY on the backend when set (falls back gracefully)</span>
       </div>
     </div>
@@ -510,7 +517,8 @@ function doRender() {
     body: JSON.stringify({
       script: state.script,
       scenes: state.scenes,
-      images: state.content ? (state.content.images || []) : []
+      images: state.content ? (state.content.images || []) : [],
+      pro: !!state.isPro
     })
   })
   .then(r => r.json())
@@ -623,19 +631,43 @@ function loadServerRenders() {
     .then(r => r.json())
     .then(j => {
       list.innerHTML = '';
-      const files = (j.renders || []).slice(0, 12); // limit
+      const all = j.renders || [];
+      const files = all.slice(0, 12); // limit
       if (!files.length) {
         list.innerHTML = '<div class="text-sm text-white/40">no renders yet</div>';
         return;
       }
+      const header = document.createElement('div');
+      header.className = 'text-[10px] text-white/50 mb-2';
+      header.textContent = `showing ${files.length} of ${all.length} • newest first`;
+      list.appendChild(header);
       files.forEach(f => {
         const div = document.createElement('div');
         div.className = 'glass p-3 rounded-3xl hover:border-white/20 border border-transparent cursor-pointer text-xs';
         const url = `${API}${f.url}`;
+        const sizeKB = Math.round((f.size || 0) / 1024);
+        const mins = Math.max(0, Math.floor((Date.now() - (f.mtime || Date.now()) * 1000) / 60000));
+        const timeStr = mins < 1 ? 'just now' : mins + 'm ago';
         div.innerHTML = `
           <div class="font-medium truncate">${f.file}</div>
-          <div class="text-[10px] text-white/50 mt-1">click to preview</div>
+          <div class="flex justify-between text-[10px] text-white/50 mt-1">
+            <span>${sizeKB}KB • ${timeStr}</span>
+            <span>click</span>
+          </div>
         `;
+        if (f.script) {
+          const reuseBtn = document.createElement('button');
+          reuseBtn.textContent = '↻ reuse script';
+          reuseBtn.className = 'text-[10px] text-emerald-400 underline mt-1 block';
+          reuseBtn.onclick = (e) => {
+            e.stopPropagation();
+            state.script = f.script;
+            renderScriptEditor();
+            buildStoryboard();
+            showSection('storyboard-section', true);
+          };
+          div.appendChild(reuseBtn);
+        }
         div.onclick = () => {
           // load into result
           const isGif = f.file.endsWith('.gif');
@@ -670,11 +702,37 @@ function addPoint() {
   renderScriptEditor();
 }
 
+function copyScript() {
+  if (!state.script) return;
+  const text = `${state.script.hook}\n\n${(state.script.points || []).map(p => '• ' + p).join('\n')}\n\n${state.script.cta}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      const origTitle = document.title;
+      document.title = 'Copied!';
+      setTimeout(() => document.title = origTitle, 800);
+    }).catch(() => {
+      prompt('Copy script:', text);
+    });
+  } else {
+    prompt('Copy script:', text);
+  }
+}
+
 // init
 loadState();
 renderHistory();
 loadServerRenders();
 console.log('%c[WebVid] Vanilla frontend ready — no React/Babel dependency', 'color:#64748b');
+
+// Show Grok AI status pill if the backend has a key configured (full product signal)
+fetch(`${API}/api/health`).then(r => r.json()).then(d => {
+  const pill = document.getElementById('ai-pill');
+  if (pill && d.ai_enabled) {
+    pill.classList.remove('hidden');
+    pill.title = d.ai_note || 'Grok AI ready';
+    pill.textContent = state.isPro ? '✨ Grok AI (unlimited)' : '✨ Grok AI';
+  }
+}).catch(() => {});
 </script>
 </body>
 </html>

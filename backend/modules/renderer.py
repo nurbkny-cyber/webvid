@@ -84,7 +84,7 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: Im
     return lines or [text]
 
 
-def _make_frame(bg_img: Optional[Image.Image], text: str, sub: str, is_last: bool) -> Image.Image:
+def _make_frame(bg_img: Optional[Image.Image], text: str, sub: str, is_last: bool, has_watermark: bool = True) -> Image.Image:
     img = Image.new("RGB", (WIDTH, HEIGHT), (15, 15, 30))
     draw = ImageDraw.Draw(img)
 
@@ -128,8 +128,9 @@ def _make_frame(bg_img: Optional[Image.Image], text: str, sub: str, is_last: boo
     if is_last:
         draw.text((60, HEIGHT - 160), "Link in bio  •  Save this", font=sub_font, fill=(160, 170, 200))
 
-    # Subtle brand bar
-    draw.rectangle([(0, HEIGHT - 8), (WIDTH, HEIGHT)], fill=(59, 108, 245))
+    # Subtle brand bar (watermark for free tier only)
+    if has_watermark:
+        draw.rectangle([(0, HEIGHT - 8), (WIDTH, HEIGHT)], fill=(59, 108, 245))
 
     return img
 
@@ -182,6 +183,9 @@ def render_video(script: Script, scenes: List[Scene], images: List[str], options
     mp4_path = os.path.join(RENDERS_DIR, f"{base}.mp4")
     gif_path = os.path.join(RENDERS_DIR, f"{base}.gif")
 
+    pro = options.get("pro", False)
+    has_watermark = not pro
+
     # Prepare B-roll images (download up to MAX_IMAGES safely)
     bg_images: List[Optional[Image.Image]] = [None] * len(scenes)
     tmp_dir = tempfile.mkdtemp(prefix="webvid_img_")
@@ -216,12 +220,12 @@ def render_video(script: Script, scenes: List[Scene], images: List[str], options
 
         for fi in range(n_frames):
             # slight zoom on bg for motion
-            frame = _make_frame(bg, scene.text, sub, scene.visual == "cta")
+            frame = _make_frame(bg, scene.text, sub, scene.visual == "cta", has_watermark=has_watermark)
             frames.append(frame)
 
     if not frames:
         # emergency single frame
-        frames = [_make_frame(None, script.hook, "", False)]
+        frames = [_make_frame(None, script.hook, "", False, has_watermark=has_watermark)]
 
     # Try real MP4 first
     used_mp4 = False
@@ -248,7 +252,7 @@ def render_video(script: Script, scenes: List[Scene], images: List[str], options
         except Exception as eg:
             security_logger.error(f"GIF fallback also failed: {eg}")
             # last resort: create a single frame GIF
-            f0 = frames[0] if frames else _make_frame(None, script.hook or "WebVid", "", False)
+            f0 = frames[0] if frames else _make_frame(None, script.hook or "WebVid", "", False, has_watermark=has_watermark)
             f0.save(gif_path, duration=800, loop=0)
             final_path = gif_path
             fmt = "gif"
@@ -260,7 +264,7 @@ def render_video(script: Script, scenes: List[Scene], images: List[str], options
         width=WIDTH,
         height=HEIGHT,
         format=fmt,
-        has_watermark=True,  # V0.1 free tier
+        has_watermark=has_watermark,
         created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
     security_logger.info(f"Render complete: {asset.path} ({asset.duration}s, {fmt})")

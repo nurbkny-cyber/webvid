@@ -109,9 +109,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if p.path == "/api/renders":
             files = []
-            for f in sorted(os.listdir(RENDERS_DIR)):
+            for f in os.listdir(RENDERS_DIR):
                 if f.endswith((".mp4", ".gif")):
-                    files.append({"file": f, "url": f"/renders/{f}"})
+                    full = os.path.join(RENDERS_DIR, f)
+                    st = os.stat(full)
+                    item = {
+                        "file": f,
+                        "url": f"/renders/{f}",
+                        "size": st.st_size,
+                        "mtime": st.st_mtime
+                    }
+                    # include sidecar script if present for reuse feature
+                    script_path = os.path.join(RENDERS_DIR, f"{os.path.splitext(f)[0]}.script.json")
+                    if os.path.exists(script_path):
+                        try:
+                            with open(script_path) as sf:
+                                item["script"] = json.load(sf)
+                        except Exception:
+                            pass
+                    files.append(item)
+            # newest first
+            files.sort(key=lambda x: x["mtime"], reverse=True)
             _json(self, {"renders": files})
             return
 
@@ -213,7 +231,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     scenes = build_storyboard(script)
 
                 images = data.get("images", []) or []
-                asset = render_video(script, scenes, images)
+                pro = bool(data.get("pro", False))
+                asset = render_video(script, scenes, images, options={"pro": pro})
+
+                # save sidecar script JSON for "reuse this script" from the renders list (full product feature)
+                base = os.path.splitext(asset.path)[0]
+                script_for_save = data.get("script") or script_dict or {}
+                try:
+                    with open(os.path.join(RENDERS_DIR, f"{base}.script.json"), "w") as sf:
+                        json.dump(script_for_save, sf)
+                except Exception as se:
+                    security_logger.warning(f"sidecar script save failed: {se}")
+
                 _json(self, {
                     "success": True,
                     "asset": {
@@ -223,8 +252,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         "format": asset.format,
                         "width": asset.width,
                         "height": asset.height,
+                        "has_watermark": asset.has_watermark,
                     },
-                    "note": "Free tier includes watermark. Upgrade for clean exports."
+                    "note": "Pro: clean exports, no watermark." if pro else "Free tier includes watermark. Upgrade for clean exports."
                 })
             except Exception as e:
                 security_logger.error(f"render error: {e}")
