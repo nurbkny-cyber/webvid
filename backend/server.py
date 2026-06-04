@@ -85,12 +85,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         p = urllib.parse.urlparse(self.path)
         if p.path == "/api/health":
+            ai_key = bool(os.environ.get("XAI_API_KEY") or os.environ.get("GROK_API_KEY"))
             _json(self, {
                 "status": "ok",
                 "name": "WebVid",
                 "version": "0.1",
                 "creed": "active",
                 "ffmpeg": __import__("modules.renderer", fromlist=["is_ffmpeg_available"]).is_ffmpeg_available(),
+                "ai_enabled": ai_key,
+                "ai_note": "Set XAI_API_KEY or GROK_API_KEY env var for Grok-powered script generation",
             })
             return
 
@@ -165,7 +168,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 content = WebContent.from_dict(raw)
                 tone = data.get("tone", "professional")
                 secs = int(data.get("target_seconds", 30))
-                script = generate_script(content, tone=tone, target_seconds=secs)
+                use_ai = bool(data.get("use_ai", False))
+                script = generate_script(content, tone=tone, target_seconds=secs, use_ai=use_ai)
                 _json(self, {"success": True, "script": script.to_dict()})
             except Exception as e:
                 security_logger.error(f"script error: {e}")

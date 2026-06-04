@@ -259,7 +259,7 @@ function doExtract() {
     state.content = j.data;
     showSection('content-section', true);
     renderContent();
-    generateScript();
+    generateScript(false);
   })
   .catch(e => {
     alert(e.message || 'Failed to import site. Try one of the example buttons above.');
@@ -283,16 +283,22 @@ function renderContent() {
   });
 }
 
-function generateScript() {
+function generateScript(useAI = false) {
   if (!state.content) return;
-  // Use backend for script
+  const btn = document.getElementById('ai-script-btn');
+  if (btn && useAI) {
+    btn.disabled = true;
+    btn.textContent = '✨ Thinking with Grok...';
+  }
+
   fetch(`${API}/api/script`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ 
       web_content: state.content, 
-      tone: document.getElementById('tone-select') ? document.getElementById('tone-select').value : 'professional', 
-      target_seconds: parseInt(document.getElementById('seconds-input') ? document.getElementById('seconds-input').value : 28) 
+      tone: (document.getElementById('tone-select') ? document.getElementById('tone-select').value : 'professional'), 
+      target_seconds: parseInt((document.getElementById('seconds-input') ? document.getElementById('seconds-input').value : 28)),
+      use_ai: !!useAI
     })
   })
   .then(r => r.json())
@@ -300,12 +306,12 @@ function generateScript() {
     if (j.success) {
       state.script = j.script;
     } else {
-      // fallback
       state.script = {
         hook: `Key takeaways from ${state.content.title || 'this page'}`,
         points: state.content.key_points && state.content.key_points.length ? state.content.key_points.slice(0,4) : [state.content.description || 'Important details'],
         cta: 'Full story on the site. Save this.',
-        target_seconds: 28
+        target_seconds: 28,
+        source: 'template'
       };
     }
     renderScriptEditor();
@@ -313,16 +319,22 @@ function generateScript() {
     showSection('storyboard-section', true);
   })
   .catch(() => {
-    // simple fallback
     state.script = {
       hook: `Key takeaways from ${state.content.title || 'this page'}`,
       points: state.content.key_points && state.content.key_points.length ? state.content.key_points.slice(0,4) : [state.content.description || 'Important details'],
       cta: 'Full story on the site. Save this.',
-      target_seconds: 28
+      target_seconds: 28,
+      source: 'template'
     };
     renderScriptEditor();
     buildStoryboard();
     showSection('storyboard-section', true);
+  })
+  .finally(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '✨ Improve with Grok AI';
+    }
   });
 }
 
@@ -341,9 +353,17 @@ function renderScriptEditor() {
     scriptArea.className = 'mt-6 glass rounded-3xl p-6';
     container.appendChild(scriptArea);
   }
+  const isGrok = state.script.source === 'grok';
   scriptArea.innerHTML = `
     <div class="flex items-center justify-between mb-4">
-      <div class="font-semibold text-xl">Video Script</div>
+      <div class="font-semibold text-xl flex items-center gap-2">
+        Video Script
+        ${isGrok ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✨ Grok improved</span>' : ''}
+      </div>
+      <button id="ai-script-btn" onclick="generateScript(true)"
+              class="px-3 py-1 text-xs rounded-2xl border border-white/20 hover:bg-white/5 flex items-center gap-1 active:scale-[0.985] transition">
+        ✨ Improve with Grok AI
+      </button>
     </div>
     <div class="space-y-4">
       <div>
@@ -360,6 +380,7 @@ function renderScriptEditor() {
       </div>
       <div class="flex gap-3 text-sm">
         <button onclick="saveScriptFromUI(); buildStoryboard()" class="px-5 py-2 rounded-2xl border border-white/15">Update Storyboard</button>
+        <span class="text-[10px] text-white/40 self-center">Grok uses your XAI_API_KEY on the backend when set (falls back gracefully)</span>
       </div>
     </div>
   `;

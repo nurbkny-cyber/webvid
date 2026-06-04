@@ -36,6 +36,24 @@ brew install ffmpeg
 
 After installing ffmpeg, restart the backend. The UI will show MP4 capability on `/api/health`.
 
+### xAI Grok for dramatically better scripts (optional but transformative)
+
+The "✨ Improve with Grok AI" button in the script editor calls Grok when you have a key.
+
+```bash
+# Copy the example and set your key
+cp .env.example .env
+# edit .env and put your key, or just export in the shell:
+export XAI_API_KEY=your_key_from_console.x.ai
+```
+
+- Get a key: https://console.x.ai/
+- When the key is present on the backend, Grok writes the hook + points + CTA.
+- Always falls back gracefully to the solid template if the key is missing or the call fails (never breaks the product).
+- This is the exact "magic" that makes the tool feel premium and worth paying for.
+
+Restart the backend after setting the key (or let the keeper heal the port). `/api/health` will report `"ai_enabled": true`.
+
 ## Freemium / Profit model (V0.1)
 
 - 2 free renders per day (localStorage, per browser).
@@ -82,21 +100,22 @@ The frontend includes a live "Server renders (all previous)" browser (fetches /a
 
 https://github.com/nurbkny-cyber/webvid
 
-## Next (V0.1 → V1)
+## What's new (moving fast toward full product)
 
-- Optional integration with xAI Grok API for dynamic LLM-powered script generation (currently template-based with friendly fallbacks)
-- Better progress for long renders
-- ffmpeg detection in UI
-- More robust scraping (trafilatura optional)
-- Packaging / desktop app
+- xAI Grok integration live: "✨ Improve with Grok AI" button in the script editor (when XAI_API_KEY is set). Dramatically better, more human, scroll-stopping scripts than pure templates. Full graceful fallback.
+- Server renders browser at the bottom of the UI (one-click load any previous video).
+- Friendly errors everywhere (no more raw Python tracebacks for bad domains).
+- Self-contained vanilla frontend (no fragile React/Babel CDNs).
 
-## Next (V0.1 → V1)
+## Next (V0.1 → V1) — still pushing
 
-- Persisted local history (SQLite)
-- Better typography / motion in renderer
-- Optional voice (gTTS or local TTS)
-- Pro export pack (thumbnail + caption variants + .srt)
-- Packaging as a real desktop tool
+- Persisted local history (SQLite) + user accounts in hosted version
+- Better progress / estimated time for long renders
+- ffmpeg detection + quality toggle in UI
+- Optional voiceover (gTTS or local)
+- Pro export pack (thumbnail variants, .srt captions, multiple formats)
+- Packaging as desktop app + one-click hosted version with real billing
+- More aggressive scraping (optional trafilatura) + image B-roll selection
 
 ## Creed compliance note
 

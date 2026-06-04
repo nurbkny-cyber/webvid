@@ -52,6 +52,7 @@ class Script:
     full_text: str
     target_seconds: int = 30
     platform_hints: List[str] = field(default_factory=lambda: ["reels", "tiktok", "shorts"])
+    source: str = "template"  # "template" | "grok" — lets UI show "AI improved" badge
 
     def to_dict(self) -> dict:
         return {
@@ -61,6 +62,7 @@ class Script:
             "full_text": self.full_text,
             "target_seconds": self.target_seconds,
             "platform_hints": self.platform_hints,
+            "source": getattr(self, "source", "template"),
         }
 
 

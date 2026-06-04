@@ -1,11 +1,21 @@
 """Script Generator for WebVid.
 
 Turns WebContent into a short, speakable, hook-driven video script.
-V0.1: template + heuristics (no LLM yet to avoid prompt injection surface + cost).
-Fully deterministic + editable downstream.
+- Template path (always available, deterministic, zero cost).
+- Optional Grok (xAI) path when XAI_API_KEY / GROK_API_KEY is set in env.
+  Uses the official OpenAI-compatible endpoint. Strong prompt for vertical shorts.
+  Graceful fallback on any error (never breaks the flow).
+
+Security-by-Design: prompt is constrained, output is validated JSON, key never logged,
+calls are best-effort and rate-limited at the server layer.
+
+User asked for xAI Grok support — this delivers it as a first-class (optional) upgrade.
 """
 
+import os
 import re
+import json
+import requests
 from .models import WebContent, Script
 
 
@@ -43,18 +53,123 @@ def _make_cta(tone: str, title: str) -> str:
     return ctas.get(tone, "Full story and links on the site. Save for later.")
 
 
-def generate_script(content: WebContent, tone: str = "professional", target_seconds: int = 30) -> Script:
+def _generate_with_grok(content: WebContent, tone: str, target_seconds: int) -> Script | None:
+    """Call xAI Grok (OpenAI-compatible) for a high-quality vertical video script.
+    Returns Script or None (caller falls back to template).
+    """
+    key = os.environ.get("XAI_API_KEY") or os.environ.get("GROK_API_KEY")
+    if not key:
+        return None
+
+    try:
+        # Constrained, high-signal prompt for Reels/TikTok/Shorts style
+        sys_prompt = (
+            "You are a world-class short-form video scriptwriter specializing in addictive "
+            "Reels, TikTok, and YouTube Shorts (15-60 seconds). You write in natural spoken language, "
+            "never robotic. Every script has a scroll-stopping hook in the first 3-6 seconds, "
+            "3-5 punchy spoken points, and a clear benefit-driven CTA. "
+            "Always return STRICT minified JSON only, exactly this shape: "
+            "{\"hook\":\"...\",\"points\":[\"...\",\"...\"],\"cta\":\"...\",\"full_text\":\"...\"} "
+            "No markdown, no explanations, no extra keys."
+        )
+
+        user_prompt = f"""Website content to turn into a short vertical video:
+
+Title: {content.title or 'this page'}
+Key points from page: {content.key_points or []}
+Main text (first 1800 chars): {(content.main_text or content.description or '')[:1800]}
+
+Requirements:
+- Tone: {tone}
+- Target spoken length: ~{target_seconds} seconds
+- Hook must be extremely clickable in the first 4 seconds.
+- Points must be short, speakable sentences (not bullet lists).
+- full_text should be the complete script ready to be read aloud, with natural flow and pauses marked by periods.
+
+Return ONLY the JSON object."""
+
+        headers = {
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "grok-3-mini",  # fast/cheap; users with access can change to grok-3 via env if desired
+            "messages": [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.75,
+            "max_tokens": 700
+        }
+
+        resp = requests.post(
+            "https://api.x.ai/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=28
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        raw = data["choices"][0]["message"]["content"].strip()
+
+        # Be robust to ```json wrappers some models add
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[1].replace("json", "").strip()
+
+        script_json = json.loads(raw)
+
+        hook = (script_json.get("hook") or "").strip()
+        points = [str(p).strip() for p in (script_json.get("points") or []) if str(p).strip()][:5]
+        cta = (script_json.get("cta") or "").strip()
+        full = (script_json.get("full_text") or "").strip()
+
+        if not hook or len(points) < 1:
+            return None
+
+        if not full:
+            full = f"{hook}. " + " ".join(points) + f" {cta}"
+
+        return Script(
+            hook=hook,
+            points=points,
+            cta=cta,
+            full_text=full,
+            target_seconds=target_seconds,
+            platform_hints=["reels", "tiktok", "youtube_shorts"],
+            source="grok",
+        )
+    except Exception as e:
+        # Never break the user experience. Log for the operator (cost / key issues).
+        try:
+            from modules.security import security_logger
+            security_logger.warning(f"grok generation failed (falling back to template): {type(e).__name__}")
+        except Exception:
+            pass
+        return None
+
+
+def generate_script(content: WebContent, tone: str = "professional", target_seconds: int = 30, use_ai: bool = False) -> Script:
     tone = (tone or "professional").lower()
+    target = max(15, min(60, int(target_seconds or 30)))
+
+    # Optional high-quality path (user requested xAI Grok support)
+    if use_ai:
+        ai = _generate_with_grok(content, tone, target)
+        if ai:
+            return ai
+        # if it failed we silently fall through to the reliable template
+
     title = content.title or "Website"
     hook = _make_hook(title, tone)
     points = _make_points(content)
     cta = _make_cta(tone, title)
 
     # Build speakable full script
-    full = f"{hook}.\n\n"
-    for i, p in enumerate(points, 1):
+    full = f"{hook}. "
+    for p in points:
         full += f"{p}. "
-    full += f"\n\n{cta}"
+    full += cta
     full = re.sub(r"\s+", " ", full).strip()
 
     # Rough timing: ~2.5 words per sec spoken
@@ -69,4 +184,5 @@ def generate_script(content: WebContent, tone: str = "professional", target_seco
         full_text=full,
         target_seconds=target,
         platform_hints=["reels", "tiktok", "youtube_shorts"],
+        source="template",
     )
