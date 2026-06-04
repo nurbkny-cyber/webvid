@@ -68,13 +68,27 @@ webvid/
       storyboard.py
       renderer.py             # PIL frames + conditional ffmpeg MP4
   frontend/
-    index.html                # clean single-file React app (no legacy)
+    index.html                # self-contained vanilla JS + Tailwind (no React/Babel for max compatibility)
   renders/                    # generated videos (gitignored)
   run.sh
   README.md
 ```
 
 All new code. No "social asset engine on top". Clean vertical slice for the actual product.
+
+The frontend includes a live "Server renders (all previous)" browser (fetches /api/renders) and one-click example URLs for demos.
+
+## GitHub
+
+https://github.com/nurbkny-cyber/webvid
+
+## Next (V0.1 → V1)
+
+- Optional integration with xAI Grok API for dynamic LLM-powered script generation (currently template-based with friendly fallbacks)
+- Better progress for long renders
+- ffmpeg detection in UI
+- More robust scraping (trafilatura optional)
+- Packaging / desktop app
 
 ## Next (V0.1 → V1)
 
