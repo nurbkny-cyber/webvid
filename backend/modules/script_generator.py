@@ -61,6 +61,24 @@ def _generate_with_grok(content: WebContent, tone: str, target_seconds: int) -> 
     if not key:
         return None
 
+    # Demo mode so you can instantly see what Grok-quality scripts look like
+    # without a real key yet. Set XAI_API_KEY=demo  (then restart backend or let keeper heal)
+    if key.lower() == "demo":
+        title = content.title or "this page"
+        return Script(
+            hook=f"You need to see what {title} just revealed",
+            points=[
+                "It turns any website into scroll-stopping short videos in seconds",
+                "Hook, points, and CTA are written for Reels, TikTok, and Shorts",
+                "You stay in full control — edit the script and storyboard before rendering"
+            ],
+            cta="Try it on your own site now. Link in bio.",
+            full_text=f"You need to see what {title} just revealed. It turns any website into scroll-stopping short videos in seconds. Hook, points, and CTA are written for Reels, TikTok, and Shorts. You stay in full control — edit the script and storyboard before rendering. Try it on your own site now. Link in bio.",
+            target_seconds=target_seconds,
+            platform_hints=["reels", "tiktok", "youtube_shorts"],
+            source="grok",
+        )
+
     try:
         # Constrained, high-signal prompt for Reels/TikTok/Shorts style
         sys_prompt = (
