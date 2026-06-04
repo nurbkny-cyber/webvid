@@ -4,3 +4,12 @@ __pycache__/
 renders/*.mp4
 renders/*.gif
 .DS_Store
+backend/renders/
+*.gif
+*.mp4
+__pycache__/
+*.pyc
+.cache/
+.DS_Store
+tmp/
+*.log
